@@ -1,52 +1,31 @@
 (() => {
   const CFG = window.APP_CONFIG || {};
   const $ = sel => document.querySelector(sel);
+  const state = {
+    source: 'fallback',
+    sites: [],
+  };
 
   // ========== 品牌渲染 ==========
   function applyBranding() {
     document.title = `${CFG.shopName || '密钥额度查询'} · 密钥额度查询`;
     $('#brandEmoji').textContent = CFG.logoEmoji || '⚡';
-    $('#brandName').textContent  = CFG.shopName || '密钥额度查询';
+    $('#brandName').textContent = CFG.shopName || '密钥额度查询';
     $('#brandTagline').textContent = CFG.tagline || '';
     $('#footerNote').textContent = CFG.footerNote || '';
 
     const topup = $('#navTopup');
     const support = $('#navSupport');
-    if (CFG.topupUrl)   { topup.href   = CFG.topupUrl;   topup.classList.remove('hidden'); }
-    if (CFG.supportUrl) { support.href = CFG.supportUrl; support.classList.remove('hidden'); }
-
     if (CFG.topupUrl) {
-      const btn = $('#topupBtn');
-      btn.href = CFG.topupUrl;
-      btn.classList.remove('hidden');
+      topup.href = CFG.topupUrl;
+      topup.classList.remove('hidden');
+      $('#topupBtn').href = CFG.topupUrl;
+      $('#topupBtn').classList.remove('hidden');
     }
-  }
-
-  // ========== 后端列表 ==========
-  function applyBackends() {
-    const sel = $('#backendSelect');
-    const customWrap = $('#customBackendWrap');
-    const list = (CFG.backends || []).filter(b => b && b.url);
-
-    sel.innerHTML = '';
-    list.forEach(b => {
-      const opt = document.createElement('option');
-      opt.value = b.url;
-      opt.textContent = b.label || b.url;
-      sel.appendChild(opt);
-    });
-    if (CFG.allowCustomBackend) {
-      const opt = document.createElement('option');
-      opt.value = '__custom__';
-      opt.textContent = '自定义后端…';
-      sel.appendChild(opt);
+    if (CFG.supportUrl) {
+      support.href = CFG.supportUrl;
+      support.classList.remove('hidden');
     }
-    if (!list.length && !CFG.allowCustomBackend) {
-      sel.innerHTML = '<option value="">（未配置后端，请编辑 config.js）</option>';
-    }
-    sel.addEventListener('change', () => {
-      customWrap.classList.toggle('hidden', sel.value !== '__custom__');
-    });
   }
 
   // ========== toast ==========
@@ -64,9 +43,9 @@
 
   // ========== 工具 ==========
   const quotaPerUnit = () => CFG.quotaPerUnit || 500000;
-  const toUSD   = q => q / quotaPerUnit();
-  const fmtUSD  = q => `$${toUSD(q).toFixed(4)}`;
-  const fmtCNY  = q => CFG.cnyRate ? `≈ ¥${(toUSD(q) * CFG.cnyRate).toFixed(2)}` : '';
+  const toUSD = q => q / quotaPerUnit();
+  const fmtUSD = q => `$${toUSD(q).toFixed(4)}`;
+  const fmtCNY = q => CFG.cnyRate ? `≈ ¥${(toUSD(q) * CFG.cnyRate).toFixed(2)}` : '';
   const fmtQuota = q => `${Number(q).toLocaleString('en-US')} quota`;
   const fmtDate = ts => ts === 0 ? '永不过期' : new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false });
   function fmtRel(ts) {
@@ -82,30 +61,95 @@
   }
   function maskKey(k) {
     if (!k) return '';
-    const s = k.startsWith('sk-') ? k : 'sk-' + k;
+    const s = k.startsWith('sk-') ? k : `sk-${k}`;
     if (s.length <= 14) return s;
-    return s.slice(0, 7) + '••••' + s.slice(-4);
+    return `${s.slice(0, 7)}••••${s.slice(-4)}`;
+  }
+
+  function normalizeFallbackSites() {
+    return (CFG.backends || [])
+      .filter(site => site && site.url)
+      .map(site => ({
+        value: String(site.url).trim(),
+        label: site.label || String(site.url).trim(),
+      }))
+      .filter(site => /^https?:\/\//.test(site.value));
+  }
+
+  function renderSiteOptions(sites, source) {
+    const sel = $('#backendSelect');
+    const remembered = localStorage.getItem('newapi-query:backend');
+    state.sites = sites;
+    state.source = source;
+
+    sel.innerHTML = '';
+    if (!sites.length) {
+      sel.innerHTML = '<option value="">（暂无可用站点，请联系管理员）</option>';
+      sel.disabled = true;
+      $('#siteHint').textContent = '当前没有可查询的站点。';
+      return;
+    }
+
+    sites.forEach(site => {
+      const option = document.createElement('option');
+      option.value = site.value;
+      option.textContent = site.label;
+      sel.appendChild(option);
+    });
+
+    sel.disabled = false;
+    if (remembered && sites.some(site => site.value === remembered)) {
+      sel.value = remembered;
+    }
+
+    $('#siteHint').textContent = source === 'remote'
+      ? '站点列表由后台实时维护，新增或停用后刷新页面即可看到。'
+      : '当前使用 config.js 里的静态站点列表；后台尚未写入站点配置。';
+  }
+
+  async function loadSites() {
+    const sel = $('#backendSelect');
+    sel.innerHTML = '<option value="">正在加载站点…</option>';
+    sel.disabled = true;
+
+    try {
+      const resp = await fetch('/api/sites', { headers: { Accept: 'application/json' } });
+      const data = await resp.json().catch(() => ({}));
+      const sites = Array.isArray(data?.data?.sites)
+        ? data.data.sites.map(site => ({ value: site.id, label: site.label }))
+        : [];
+      if (resp.ok && sites.length) {
+        renderSiteOptions(sites, 'remote');
+        return;
+      }
+    } catch {
+      // 回退到静态配置
+    }
+
+    renderSiteOptions(normalizeFallbackSites(), 'fallback');
   }
 
   // ========== 本地记忆 ==========
-  const LS_KEY     = 'newapi-query:key';
+  const LS_KEY = 'newapi-query:key';
   const LS_BACKEND = 'newapi-query:backend';
-  const LS_CUSTOM  = 'newapi-query:custom';
 
   function loadRemembered() {
-    const k = localStorage.getItem(LS_KEY);
-    const b = localStorage.getItem(LS_BACKEND);
-    const c = localStorage.getItem(LS_CUSTOM);
-    if (k) {
-      $('#apiKey').value = k.startsWith('sk-') ? k.slice(3) : k;
+    const key = localStorage.getItem(LS_KEY);
+    if (key) {
+      $('#apiKey').value = key.startsWith('sk-') ? key.slice(3) : key;
       $('#remember').checked = true;
     }
-    if (b) {
-      const sel = $('#backendSelect');
-      for (const opt of sel.options) if (opt.value === b) { sel.value = b; break; }
-      if (sel.value === '__custom__') $('#customBackendWrap').classList.remove('hidden');
+    localStorage.removeItem('newapi-query:custom');
+  }
+
+  function persistMemory(selectedValue, key) {
+    if ($('#remember').checked) {
+      localStorage.setItem(LS_KEY, key);
+      localStorage.setItem(LS_BACKEND, selectedValue);
+    } else {
+      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(LS_BACKEND);
     }
-    if (c) $('#customBackend').value = c;
   }
 
   // ========== 眼睛切换 ==========
@@ -118,16 +162,10 @@
   });
 
   // ========== 查询 ==========
-  function getBackend() {
-    const sel = $('#backendSelect');
-    if (sel.value === '__custom__') return ($('#customBackend').value || '').trim();
-    return (sel.value || '').trim();
-  }
-
   function getKey() {
-    const v = ($('#apiKey').value || '').trim();
-    if (!v) return '';
-    return v.startsWith('sk-') ? v : 'sk-' + v;
+    const value = ($('#apiKey').value || '').trim();
+    if (!value) return '';
+    return value.startsWith('sk-') ? value : `sk-${value}`;
   }
 
   function setLoading(on) {
@@ -140,18 +178,28 @@
   }
 
   async function query() {
-    const backend = getBackend();
+    const selectedValue = ($('#backendSelect').value || '').trim();
     const key = getKey();
 
-    if (!backend) { toast('请选择或输入后端站点'); return; }
-    if (!/^sk-\S+$/.test(key)) { toast('请输入 sk- 开头的密钥'); return; }
+    if (!selectedValue) {
+      toast('请选择查询站点');
+      return;
+    }
+    if (!/^sk-\S+$/.test(key)) {
+      toast('请输入 sk- 开头的密钥');
+      return;
+    }
+
+    const payload = state.source === 'remote'
+      ? { siteId: selectedValue, key }
+      : { backend: selectedValue, key };
 
     setLoading(true);
     try {
       const resp = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backend, key }),
+        body: JSON.stringify(payload),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || data?.success === false) {
@@ -159,27 +207,11 @@
         return;
       }
       renderResult(data, key);
-      persistMemory(backend, key);
-    } catch (e) {
-      renderError('网络错误：' + (e.message || 'unknown'));
+      persistMemory(selectedValue, key);
+    } catch (error) {
+      renderError(`网络错误：${error.message || 'unknown'}`);
     } finally {
       setLoading(false);
-    }
-  }
-
-  function persistMemory(backend, key) {
-    if ($('#remember').checked) {
-      localStorage.setItem(LS_KEY, key);
-      localStorage.setItem(LS_BACKEND, $('#backendSelect').value);
-      if ($('#backendSelect').value === '__custom__') {
-        localStorage.setItem(LS_CUSTOM, $('#customBackend').value.trim());
-      } else {
-        localStorage.removeItem(LS_CUSTOM);
-      }
-    } else {
-      localStorage.removeItem(LS_KEY);
-      localStorage.removeItem(LS_BACKEND);
-      localStorage.removeItem(LS_CUSTOM);
     }
   }
 
@@ -191,8 +223,8 @@
   function renderResult(resp, key) {
     const d = resp?.data || {};
     const unlimited = !!d.unlimited_quota;
-    const granted   = Number(d.total_granted || 0);
-    const used      = Number(d.total_used || 0);
+    const granted = Number(d.total_granted || 0);
+    const used = Number(d.total_used || 0);
     const available = Number(d.total_available ?? (granted - used));
     const expiresAt = Number(d.expires_at || 0);
 
@@ -213,13 +245,13 @@
       const pct = granted > 0 ? Math.min(100, Math.max(0, (used / granted) * 100)) : 0;
       $('#usedPercent').textContent = pct.toFixed(1);
       const bar = $('#bar');
-      bar.style.width = pct + '%';
+      bar.style.width = `${pct}%`;
       bar.classList.toggle('bar-danger', pct >= 90);
     }
 
-    $('#usedUSD').textContent    = fmtUSD(used);
-    $('#usedQuota').textContent  = fmtQuota(used);
-    $('#totalUSD').textContent   = unlimited ? '♾️' : fmtUSD(granted);
+    $('#usedUSD').textContent = fmtUSD(used);
+    $('#usedQuota').textContent = fmtQuota(used);
+    $('#totalUSD').textContent = unlimited ? '♾️' : fmtUSD(granted);
     $('#totalQuota').textContent = unlimited ? '无限额度' : fmtQuota(granted);
 
     const expired = expiresAt !== 0 && expiresAt * 1000 < Date.now();
@@ -231,20 +263,19 @@
 
     const enabled = !!d.model_limits_enabled;
     const limits = d.model_limits || {};
-    const names = Object.keys(limits).filter(k => limits[k]);
-    const block = $('#modelBlock');
+    const names = Object.keys(limits).filter(name => limits[name]);
     if (enabled && names.length) {
-      block.classList.remove('hidden');
+      $('#modelBlock').classList.remove('hidden');
       const host = $('#modelTags');
       host.innerHTML = '';
-      names.forEach(n => {
-        const el = document.createElement('span');
-        el.className = 'tag text-xs font-mono px-2.5 py-1 rounded-full text-slate-200';
-        el.textContent = n;
-        host.appendChild(el);
+      names.forEach(name => {
+        const item = document.createElement('span');
+        item.className = 'tag text-xs font-mono px-2.5 py-1 rounded-full text-slate-200';
+        item.textContent = name;
+        host.appendChild(item);
       });
     } else {
-      block.classList.add('hidden');
+      $('#modelBlock').classList.add('hidden');
     }
 
     $('#copyBtn').onclick = async () => {
@@ -270,13 +301,12 @@
     if (expired) toast('该密钥已过期', 'error');
   }
 
-  // ========== init ==========
-  function init() {
+  async function init() {
     applyBranding();
-    applyBackends();
     loadRemembered();
-    $('#queryForm').addEventListener('submit', e => {
-      e.preventDefault();
+    await loadSites();
+    $('#queryForm').addEventListener('submit', event => {
+      event.preventDefault();
       query();
     });
   }

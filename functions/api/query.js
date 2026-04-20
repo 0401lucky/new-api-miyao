@@ -1,28 +1,11 @@
 // Cloudflare Pages Function：/api/query
 // 职责：代理 new-api 的 /api/usage/token 查询接口，同源调用规避 CORS 并隐藏后端地址
 
+import { json, readJson } from '../_lib/http.js';
+import { loadSites, normalizeBackend } from '../_lib/site-store.js';
+
 const TIMEOUT_MS = 8000;
 const USAGE_PATH = '/api/usage/token';
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-    },
-  });
-}
-
-function normalizeBackend(url) {
-  try {
-    const u = new URL(url);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-    return u.origin;
-  } catch {
-    return null;
-  }
-}
 
 function parseAllowed(env) {
   const raw = (env?.ALLOWED_BACKENDS || '').trim();
@@ -34,19 +17,40 @@ function parseAllowed(env) {
 }
 
 export async function onRequestPost({ request, env }) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
+  const body = await readJson(request);
+  if (!body) {
     return json({ success: false, message: '请求体必须是 JSON' }, 400);
   }
 
-  const backend = normalizeBackend(body?.backend || '');
+  const siteId = String(body?.siteId || '').trim();
+  let backend = null;
+  if (siteId) {
+    try {
+      const sites = await loadSites(env);
+      const site = sites.find(item => item.id === siteId);
+      if (!site) {
+        return json({ success: false, message: '站点不存在，请刷新页面后重试' }, 404);
+      }
+      if (!site.enabled) {
+        return json({ success: false, message: '该站点已停用，请选择其他站点' }, 403);
+      }
+      backend = normalizeBackend(site.url);
+      if (!backend) {
+        return json({ success: false, message: '站点地址无效，请联系管理员修复' }, 500);
+      }
+    } catch (error) {
+      return json({ success: false, message: error.message || '读取站点配置失败' }, 500);
+    }
+  }
+
+  if (!backend) {
+    backend = normalizeBackend(body?.backend || '');
+  }
   const rawKey = (body?.key || '').trim();
   const key = rawKey.startsWith('sk-') ? rawKey : (rawKey ? 'sk-' + rawKey : '');
 
   if (!backend) {
-    return json({ success: false, message: '后端地址无效，请检查 config.js 或自定义输入' }, 400);
+    return json({ success: false, message: '查询站点无效，请刷新页面后重试' }, 400);
   }
   if (!key) {
     return json({ success: false, message: '请输入 API 密钥' }, 400);

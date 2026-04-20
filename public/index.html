@@ -6,6 +6,9 @@
 <meta name="color-scheme" content="dark" />
 <title>密钥额度查询</title>
 <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -32,8 +35,9 @@
 <style>
   :root { color-scheme: dark; }
   body {
-    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-family: 'IBM Plex Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
+  h1, #brandName { font-family: 'Noto Serif SC', serif; }
   .hero-bg {
     background:
       radial-gradient(1200px 600px at 10% -10%, rgba(99,102,241,0.30), transparent 60%),
@@ -132,15 +136,12 @@
         <div class="grid gap-4 sm:grid-cols-2">
 
           <label class="block">
-            <span class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5">后端站点</span>
+            <span class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5">查询站点</span>
             <div class="field flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2.5 transition">
               <select id="backendSelect" class="flex-1 bg-transparent outline-none text-slate-100 appearance-none"></select>
               <svg width="16" height="16" viewBox="0 0 24 24" class="text-slate-500"><path fill="currentColor" d="M7 10l5 5l5-5z"/></svg>
             </div>
-            <div id="customBackendWrap" class="mt-2 hidden">
-              <input id="customBackend" type="url" placeholder="https://your-newapi.example.com"
-                class="w-full rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2.5 outline-none focus:border-purple-500/60 text-sm" />
-            </div>
+            <div id="siteHint" class="mt-2 text-[11px] text-slate-500">站点列表加载中…</div>
           </label>
 
           <label class="block">

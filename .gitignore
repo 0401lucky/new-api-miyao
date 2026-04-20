@@ -11,6 +11,7 @@ yarn-error.log*
 
 # wrangler 本地缓存
 .wrangler/
+.wrangler-dev*.log
 dist/
 
 # 操作系统

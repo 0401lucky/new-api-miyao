@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>后台站点管理</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #09111f;
+    --surface: rgba(9, 17, 31, 0.74);
+    --surface-strong: rgba(14, 25, 44, 0.94);
+    --line: rgba(105, 145, 196, 0.2);
+    --text: #ebf5ff;
+    --muted: #95a8c7;
+    --accent: #67d9ff;
+    --accent-2: #ffbf69;
+    --danger: #ff7b89;
+    --success: #57d59b;
+    --shadow: 0 24px 60px rgba(0, 8, 20, 0.45);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'IBM Plex Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at top left, rgba(103, 217, 255, 0.16), transparent 34%),
+      radial-gradient(circle at top right, rgba(255, 191, 105, 0.14), transparent 30%),
+      linear-gradient(135deg, #07101d 0%, #0a1325 55%, #09111f 100%);
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(103, 217, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(103, 217, 255, 0.05) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: radial-gradient(circle at center, black 35%, transparent 85%);
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  .shell {
+    width: min(1180px, calc(100vw - 40px));
+    margin: 0 auto;
+    padding: 28px 0 56px;
+  }
+
+  .topbar,
+  .panel,
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: center;
+    border-radius: 26px;
+    padding: 18px 22px;
+  }
+
+  .brand {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .brand-mark {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    font-size: 26px;
+    background: linear-gradient(160deg, rgba(103, 217, 255, 0.22), rgba(255, 191, 105, 0.18));
+    border: 1px solid rgba(103, 217, 255, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  h1, h2 {
+    margin: 0;
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .brand p,
+  .subtle,
+  .hint,
+  .meta {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: #d7ebff;
+    border: 1px solid rgba(103, 217, 255, 0.18);
+    background: rgba(8, 19, 34, 0.68);
+  }
+
+  .pill::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 16px rgba(103, 217, 255, 0.8);
+  }
+
+  .btn,
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  .btn {
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 11px 16px;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+  }
+
+  .btn:hover { transform: translateY(-1px); }
+  .btn:disabled { cursor: wait; opacity: 0.65; transform: none; }
+
+  .btn-primary {
+    color: #09111f;
+    background: linear-gradient(135deg, var(--accent), #99f4ff);
+  }
+
+  .btn-secondary {
+    color: var(--text);
+    background: rgba(10, 20, 36, 0.82);
+    border-color: rgba(103, 217, 255, 0.18);
+  }
+
+  .btn-danger {
+    color: white;
+    background: rgba(255, 123, 137, 0.15);
+    border-color: rgba(255, 123, 137, 0.22);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 22px;
+    margin-top: 24px;
+  }
+
+  .panel {
+    border-radius: 24px;
+    padding: 22px;
+  }
+
+  .stats {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  .stat {
+    border-radius: 20px;
+    padding: 16px;
+    border: 1px solid rgba(103, 217, 255, 0.14);
+    background: rgba(7, 15, 28, 0.72);
+  }
+
+  .stat strong {
+    display: block;
+    font-size: 30px;
+    margin-top: 8px;
+  }
+
+  .form-grid {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  label {
+    display: grid;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  input[type='text'],
+  input[type='url'] {
+    width: 100%;
+    border: 1px solid rgba(103, 217, 255, 0.16);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: rgba(5, 12, 24, 0.85);
+    color: var(--text);
+    outline: none;
+  }
+
+  input[type='text']:focus,
+  input[type='url']:focus {
+    border-color: rgba(103, 217, 255, 0.42);
+    box-shadow: 0 0 0 3px rgba(103, 217, 255, 0.12);
+  }
+
+  .content {
+    display: grid;
+    gap: 18px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .card-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .card {
+    border-radius: 22px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::after {
+    content: '';
+    position: absolute;
+    inset: auto -10% -70px auto;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(103, 217, 255, 0.18), transparent 60%);
+    pointer-events: none;
+  }
+
+  .site-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    border: 1px solid rgba(103, 217, 255, 0.18);
+    background: rgba(5, 12, 24, 0.78);
+  }
+
+  .badge.enabled { color: #dbfff0; border-color: rgba(87, 213, 155, 0.28); }
+  .badge.disabled { color: #ffd6da; border-color: rgba(255, 123, 137, 0.28); }
+
+  .site-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .site-actions .btn { flex: 1 1 120px; }
+
+  .empty,
+  .import {
+    border-radius: 22px;
+    padding: 20px;
+    border: 1px dashed rgba(103, 217, 255, 0.22);
+    background: rgba(7, 15, 28, 0.56);
+  }
+
+  .toast-host {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    display: grid;
+    gap: 10px;
+    z-index: 20;
+  }
+
+  .toast {
+    min-width: 260px;
+    max-width: 360px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(103, 217, 255, 0.2);
+    background: rgba(6, 13, 24, 0.96);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    animation: toast-in 0.22s ease-out;
+  }
+
+  .toast.success { border-color: rgba(87, 213, 155, 0.3); }
+  .toast.error { border-color: rgba(255, 123, 137, 0.3); }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 960px) {
+    .layout { grid-template-columns: 1fr; }
+    .site-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .shell { width: min(100vw - 24px, 1180px); padding-top: 16px; }
+    .topbar { padding: 16px; border-radius: 20px; }
+    .panel, .card { border-radius: 20px; padding: 16px; }
+    .topbar-actions, .site-actions { width: 100%; }
+    .topbar-actions .btn, .site-actions .btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="toast-host" id="toastHost"></div>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" id="brandEmoji">⚡</div>
+        <div>
+          <p class="subtle">受密码保护</p>
+          <h1 id="brandName">站点控制台</h1>
+          <p class="hint">维护前台可见的查询站点，保存后前台刷新即可生效。</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="pill">实时写入 Cloudflare KV</div>
+        <a class="btn btn-secondary" href="/">返回查询页</a>
+        <button class="btn btn-danger" id="logoutBtn" type="button">退出后台</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="panel">
+        <p class="subtle">站点新增</p>
+        <h2>把新站点录进去</h2>
+        <p class="hint" style="margin-top:10px;">这里只保存站点名称和域名，查询时由服务端拼接 `/api/usage/token`。</p>
+
+        <form class="form-grid" id="createForm">
+          <label>
+            站点名称
+            <input id="createLabel" name="label" type="text" maxlength="40" placeholder="例如：主站 / 日本备用站" required />
+          </label>
+          <label>
+            站点地址
+            <input id="createUrl" name="url" type="url" placeholder="https://api.example.com" required />
+          </label>
+          <button class="btn btn-primary" id="createBtn" type="submit">新增站点</button>
+        </form>
+
+        <div class="stats">
+          <div class="stat">
+            <span class="subtle">总站点数</span>
+            <strong id="statTotal">0</strong>
+          </div>
+          <div class="stat">
+            <span class="subtle">当前启用</span>
+            <strong id="statEnabled">0</strong>
+          </div>
+          <div class="stat">
+            <span class="subtle">前台调用方式</span>
+            <strong style="font-size:18px;">站点 ID → 服务端解析</strong>
+            <p class="hint" style="margin-top:8px;">前台不再直接暴露真实后端地址。</p>
+          </div>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="subtle">站点清单</p>
+              <h2>当前后台配置</h2>
+            </div>
+            <button class="btn btn-secondary" id="refreshBtn" type="button">刷新数据</button>
+          </div>
+          <div id="importBlock" class="import" hidden></div>
+          <div id="siteList" class="card-grid"></div>
+          <div id="emptyBlock" class="empty" hidden>
+            <h2 style="font-size:22px;">后台暂时还没有站点</h2>
+            <p class="hint" style="margin-top:10px;">你可以直接在左侧新增，也可以先从当前 `config.js` 导入现有站点。</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script>
+    (() => {
+      const CFG = window.APP_CONFIG || {};
+      const $ = sel => document.querySelector(sel);
+      const state = {
+        sites: [],
+        loading: false,
+      };
+
+      const staticSites = (CFG.backends || [])
+        .filter(site => site && site.url)
+        .map(site => ({
+          label: String(site.label || site.url).trim(),
+          url: String(site.url).trim(),
+        }))
+        .filter(site => /^https?:\/\//.test(site.url))
+        .filter((site, index, list) => list.findIndex(item => item.url === site.url) === index);
+
+      function escapeHtml(text) {
+        return String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function toast(message, type = 'error') {
+        const item = document.createElement('div');
+        item.className = `toast ${type}`;
+        item.textContent = message;
+        $('#toastHost').appendChild(item);
+        setTimeout(() => item.remove(), 3200);
+      }
+
+      function setBrand() {
+        document.title = `${CFG.shopName || '密钥额度查询'} · 站点管理`;
+        $('#brandEmoji').textContent = CFG.logoEmoji || '⚡';
+        $('#brandName').textContent = `${CFG.shopName || '密钥额度查询'} · 站点控制台`;
+      }
+
+      async function requestJson(url, options = {}) {
+        const resp = await fetch(url, options);
+        const text = await resp.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!resp.ok || data?.success === false) {
+          throw new Error(data?.message || `请求失败（${resp.status}）`);
+        }
+        return data;
+      }
+
+      function setStats() {
+        $('#statTotal').textContent = String(state.sites.length);
+        $('#statEnabled').textContent = String(state.sites.filter(site => site.enabled).length);
+      }
+
+      function renderImport() {
+        const block = $('#importBlock');
+        if (state.sites.length || !staticSites.length) {
+          block.hidden = true;
+          block.innerHTML = '';
+          return;
+        }
+
+        block.hidden = false;
+        block.innerHTML = `
+          <p class="subtle">迁移助手</p>
+          <h2 style="font-size:22px; margin-top:6px;">后台还没写入站点，是否导入当前静态配置？</h2>
+          <p class="hint" style="margin-top:10px;">导入后，前台会优先使用后台站点列表。以下 ${staticSites.length} 个站点来自现有 \`config.js\`：</p>
+          <div style="display:grid; gap:8px; margin-top:14px;">
+            ${staticSites.map(site => `<div class="badge enabled">${escapeHtml(site.label)} · ${escapeHtml(site.url)}</div>`).join('')}
+          </div>
+          <div style="margin-top:16px;">
+            <button class="btn btn-primary" id="importBtn" type="button">一键导入现有站点</button>
+          </div>
+        `;
+        $('#importBtn').addEventListener('click', importStaticSites);
+      }
+
+      function renderSites() {
+        setStats();
+        renderImport();
+
+        const host = $('#siteList');
+        host.innerHTML = '';
+
+        $('#emptyBlock').hidden = state.sites.length > 0;
+        if (!state.sites.length) return;
+
+        state.sites.forEach((site, index) => {
+          const card = document.createElement('article');
+          card.className = 'card';
+          card.dataset.siteId = site.id;
+          card.innerHTML = `
+            <div class="site-top">
+              <div>
+                <p class="subtle">站点 #${index + 1}</p>
+                <h2 style="font-size:26px; margin-top:4px;">${escapeHtml(site.label)}</h2>
+              </div>
+              <div class="badge ${site.enabled ? 'enabled' : 'disabled'}">${site.enabled ? '启用中' : '已停用'}</div>
+            </div>
+            <div class="site-grid">
+              <label>
+                显示名称
+                <input type="text" data-field="label" value="${escapeHtml(site.label)}" maxlength="40" />
+              </label>
+              <label>
+                站点地址
+                <input type="url" data-field="url" value="${escapeHtml(site.url)}" />
+              </label>
+            </div>
+            <div class="meta" style="margin-top:12px;">创建：${site.createdAt || '-'} ｜ 最近修改：${site.updatedAt || '-'}</div>
+            <div class="site-actions">
+              <button class="btn btn-primary" data-action="save" type="button">保存修改</button>
+              <button class="btn btn-secondary" data-action="toggle" type="button">${site.enabled ? '停用站点' : '启用站点'}</button>
+              <button class="btn btn-secondary" data-action="up" type="button" ${index === 0 ? 'disabled' : ''}>上移</button>
+              <button class="btn btn-secondary" data-action="down" type="button" ${index === state.sites.length - 1 ? 'disabled' : ''}>下移</button>
+              <button class="btn btn-danger" data-action="delete" type="button">删除站点</button>
+            </div>
+          `;
+          card.querySelectorAll('[data-action]').forEach(button => {
+            button.addEventListener('click', () => handleAction(site.id, button.dataset.action));
+          });
+          host.appendChild(card);
+        });
+      }
+
+      async function refreshSites() {
+        const data = await requestJson('/api/admin/sites');
+        state.sites = Array.isArray(data?.data?.sites) ? data.data.sites : [];
+        renderSites();
+      }
+
+      function getSiteById(siteId) {
+        return state.sites.find(site => site.id === siteId);
+      }
+
+      function readCardPayload(siteId) {
+        const card = document.querySelector(`[data-site-id="${siteId}"]`);
+        return {
+          label: card.querySelector('[data-field="label"]').value.trim(),
+          url: card.querySelector('[data-field="url"]').value.trim(),
+        };
+      }
+
+      async function saveSite(siteId) {
+        const current = getSiteById(siteId);
+        const draft = readCardPayload(siteId);
+        const data = await requestJson(`/api/admin/sites/${siteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...draft,
+            enabled: current.enabled,
+          }),
+        });
+        state.sites = data.data.sites;
+        renderSites();
+        toast('站点已保存', 'success');
+      }
+
+      async function toggleSite(siteId) {
+        const current = getSiteById(siteId);
+        const draft = readCardPayload(siteId);
+        const data = await requestJson(`/api/admin/sites/${siteId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...draft,
+            enabled: !current.enabled,
+          }),
+        });
+        state.sites = data.data.sites;
+        renderSites();
+        toast(current.enabled ? '站点已停用' : '站点已启用', 'success');
+      }
+
+      async function deleteSite(siteId) {
+        const current = getSiteById(siteId);
+        if (!confirm(`确认删除站点「${current.label}」吗？`)) return;
+        const data = await requestJson(`/api/admin/sites/${siteId}`, { method: 'DELETE' });
+        state.sites = data.data.sites;
+        renderSites();
+        toast('站点已删除', 'success');
+      }
+
+      async function reorderSite(siteId, direction) {
+        const index = state.sites.findIndex(site => site.id === siteId);
+        const target = index + direction;
+        if (index < 0 || target < 0 || target >= state.sites.length) return;
+        const reordered = [...state.sites];
+        [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+        const data = await requestJson('/api/admin/sites/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: reordered.map(site => site.id) }),
+        });
+        state.sites = data.data.sites;
+        renderSites();
+        toast('排序已更新', 'success');
+      }
+
+      async function handleAction(siteId, action) {
+        try {
+          if (action === 'save') await saveSite(siteId);
+          if (action === 'toggle') await toggleSite(siteId);
+          if (action === 'delete') await deleteSite(siteId);
+          if (action === 'up') await reorderSite(siteId, -1);
+          if (action === 'down') await reorderSite(siteId, 1);
+        } catch (error) {
+          toast(error.message || '操作失败');
+        }
+      }
+
+      async function importStaticSites() {
+        try {
+          let latest = null;
+          for (const site of staticSites) {
+            latest = await requestJson('/api/admin/sites', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(site),
+            });
+          }
+          state.sites = latest?.data?.sites || [];
+          renderSites();
+          toast('静态站点已导入后台', 'success');
+        } catch (error) {
+          toast(error.message || '导入失败');
+        }
+      }
+
+      async function createSite(event) {
+        event.preventDefault();
+        try {
+          const data = await requestJson('/api/admin/sites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              label: $('#createLabel').value.trim(),
+              url: $('#createUrl').value.trim(),
+            }),
+          });
+          state.sites = data.data.sites;
+          $('#createForm').reset();
+          renderSites();
+          toast('新站点已加入后台', 'success');
+        } catch (error) {
+          toast(error.message || '新增失败');
+        }
+      }
+
+      async function logout() {
+        try {
+          await fetch('/api/admin/logout', { method: 'POST' });
+        } finally {
+          location.href = '/admin/login';
+        }
+      }
+
+      async function init() {
+        setBrand();
+        $('#createForm').addEventListener('submit', createSite);
+        $('#refreshBtn').addEventListener('click', () => {
+          refreshSites().catch(error => toast(error.message || '刷新失败'));
+        });
+        $('#logoutBtn').addEventListener('click', logout);
+
+        try {
+          await refreshSites();
+        } catch (error) {
+          toast(error.message || '后台初始化失败');
+        }
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>

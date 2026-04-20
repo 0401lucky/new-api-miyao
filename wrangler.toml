@@ -1,3 +1,10 @@
-name = "new-api-key-query"
+name = "new-api-miyao"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "public"
+
+# Cloudflare Pages 项目使用的站点配置 KV。
+# 本地开发也可以直接使用：wrangler pages dev public --kv=SITE_CONFIG
+[[kv_namespaces]]
+binding = "SITE_CONFIG"
+id = "f1f3e17f2bdb4ad7bdb8c15df40ea026"
+preview_id = "b5b54ce2bc8c432894010cde38de74f0"

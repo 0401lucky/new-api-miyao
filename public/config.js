@@ -1,5 +1,5 @@
-// 这是你唯一需要定制的文件
-// 修改后 push 到 GitHub，Cloudflare Pages 会自动重新部署
+// 这是你主要需要定制的文件之一
+// 品牌、静态回退站点和外链都在这里配置
 
 window.APP_CONFIG = {
   // ===== 店铺品牌 =====
@@ -7,14 +7,13 @@ window.APP_CONFIG = {
   logoEmoji: '⚡',
   tagline: 'AI 模型中转站 · 即买即用 · 自助查询余额',
 
-  // ===== 后端站点列表（用户在下拉中选择）=====
+  // ===== 静态回退站点列表 =====
+  // 当后台 KV 还没有站点时，前台会回退读取这里
+  // 后台管理页也可以一键导入这些站点
   backends: [
     { label: '主站', url: 'https://www.lucky04.dpdns.org' },
     // { label: '备用站', url: 'https://api2.example.com' },
   ],
-
-  // 是否允许用户手动输入"自定义后端"；售卖场景通常设为 false
-  allowCustomBackend: false,
 
   // ===== 额度换算（one-api / new-api 默认 500000 quota = $1）=====
   // 如果你后台改过 quota_per_unit，请同步改这里

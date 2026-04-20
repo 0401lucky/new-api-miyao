@@ -1,4 +1,12 @@
 # 本地调试用环境变量样例
 # 使用方法：复制本文件为 .dev.vars（不要提交），wrangler pages dev 会自动加载
-# 可选：限制代理只能指向白名单后端，逗号分隔；留空则允许任意
+# 推荐同时绑定本地 KV：wrangler pages dev public --kv=SITE_CONFIG --local-protocol=https
+
+# 后台登录密码
+ADMIN_PASSWORD=change-me
+
+# 后台会话签名密钥，至少 32 位随机字符串
+ADMIN_SESSION_SECRET=change-this-to-a-long-random-secret
+
+# 可选：限制兼容模式下的直连代理只能指向白名单后端，逗号分隔；留空则允许任意
 ALLOWED_BACKENDS=

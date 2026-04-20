@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>后台登录</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #160f0a;
+    --surface: rgba(26, 17, 11, 0.74);
+    --line: rgba(255, 191, 105, 0.18);
+    --text: #fff7ed;
+    --muted: #d6bca3;
+    --accent: #ffbf69;
+    --accent-2: #7ce1ff;
+    --danger: #ff8d80;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    font-family: 'IBM Plex Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at top, rgba(255, 191, 105, 0.22), transparent 36%),
+      radial-gradient(circle at bottom left, rgba(124, 225, 255, 0.12), transparent 30%),
+      linear-gradient(145deg, #130d08 0%, #1a120b 52%, #0d1320 100%);
+  }
+
+  .frame {
+    width: min(460px, 100%);
+    padding: 28px;
+    border-radius: 28px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.45);
+  }
+
+  .eyebrow, .hint, .error {
+    color: var(--muted);
+    margin: 0;
+  }
+
+  h1 {
+    margin: 10px 0 0;
+    font-family: 'Noto Serif SC', serif;
+    font-size: clamp(30px, 6vw, 40px);
+    letter-spacing: 0.06em;
+  }
+
+  form {
+    display: grid;
+    gap: 14px;
+    margin-top: 24px;
+  }
+
+  label {
+    display: grid;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  input {
+    width: 100%;
+    border: 1px solid rgba(255, 191, 105, 0.18);
+    border-radius: 16px;
+    padding: 14px 16px;
+    font: inherit;
+    background: rgba(14, 11, 8, 0.86);
+    color: var(--text);
+    outline: none;
+  }
+
+  input:focus {
+    border-color: rgba(255, 191, 105, 0.42);
+    box-shadow: 0 0 0 3px rgba(255, 191, 105, 0.12);
+  }
+
+  button,
+  a {
+    font: inherit;
+  }
+
+  button {
+    border: 0;
+    border-radius: 16px;
+    padding: 14px 18px;
+    color: #16100b;
+    background: linear-gradient(135deg, var(--accent), #ffd9a8);
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+
+  button:hover { transform: translateY(-1px); }
+  button:disabled { opacity: 0.72; cursor: wait; transform: none; }
+
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  .actions a {
+    color: var(--accent-2);
+    text-decoration: none;
+  }
+
+  .error {
+    min-height: 20px;
+    color: var(--danger);
+  }
+</style>
+</head>
+<body>
+  <main class="frame">
+    <p class="eyebrow">后台入口</p>
+    <h1 id="brandName">站点控制台登录</h1>
+    <p class="hint" style="margin-top:12px;">输入管理员密码后进入站点后台。登录成功会写入 12 小时会话。</p>
+
+    <form id="loginForm">
+      <label>
+        管理密码
+        <input id="password" type="password" autocomplete="current-password" placeholder="请输入后台密码" required />
+      </label>
+      <button id="submitBtn" type="submit">进入后台</button>
+      <p class="error" id="errorText"></p>
+    </form>
+
+    <div class="actions">
+      <span class="hint">登录页只接受本站内发起的提交。</span>
+      <a href="/">返回查询页</a>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script>
+    (() => {
+      const CFG = window.APP_CONFIG || {};
+      const form = document.getElementById('loginForm');
+      const errorText = document.getElementById('errorText');
+      const submitBtn = document.getElementById('submitBtn');
+      const params = new URLSearchParams(location.search);
+      const next = params.get('next');
+      const target = next && next.startsWith('/admin') ? next : '/admin';
+
+      document.title = `${CFG.shopName || '密钥额度查询'} · 后台登录`;
+      document.getElementById('brandName').textContent = `${CFG.shopName || '密钥额度查询'} · 站点控制台`;
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        errorText.textContent = '';
+        submitBtn.disabled = true;
+        submitBtn.textContent = '验证中…';
+
+        try {
+          const resp = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: document.getElementById('password').value }),
+          });
+
+          if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            throw new Error(data?.message || '登录失败');
+          }
+
+          location.href = target;
+        } catch (error) {
+          errorText.textContent = error.message || '登录失败';
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = '进入后台';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

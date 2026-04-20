@@ -1,168 +1,249 @@
 # New API 密钥额度查询器
 
-一个部署在 **Cloudflare Pages** 的零成本小工具，让你的 API 买家输入自己的 `sk-xxx` 即可自助查询额度、已用、到期时间与模型白名单。后端指向你自建的 [QuantumNous/new-api](https://github.com/QuantumNous/new-api) 实例（需 **v0.8.0+**，即 PR #1161 之后的版本）。
+一个部署在 **Cloudflare Pages** 的轻量工具，让你的 API 买家输入自己的 `sk-xxx` 后，自助查询额度、已用、到期时间与模型白名单。  
+前台使用 **Cloudflare Pages Functions** 代理到你自建的 [QuantumNous/new-api](https://github.com/QuantumNous/new-api) 实例，后台则新增了 **密码保护的站点管理页**，可实时维护前台可选站点。
 
-![screenshot](./public/favicon.svg)
+## ✨ 现在支持什么
 
-## ✨ 特性
+- 买家自助查询密钥余额、已用额度、到期时间、模型白名单
+- 前端同源请求 `/api/query`，规避 CORS
+- 后台登录页：`/admin/login`
+- 后台站点管理页：`/admin`
+- 站点列表写入 Cloudflare KV，保存后前台刷新即可生效
+- 当前后台为空时，前台会自动回退到 `public/config.js` 的静态 `backends`
+- 后台提供“一键导入当前静态站点”能力，方便首次迁移
+- 旧的 `{ backend, key }` 查询方式仍保留，用于迁移期和静态回退
 
-- 🎨 深色霓虹极简风，玻璃卡 + 发光进度条，移动端友好
-- 🔑 直接调用 new-api 新接口 `GET /api/usage/token`，一次返回完整信息
-- 🛡️ 前端**不**直接请求 new-api；由 Cloudflare Pages Functions 同源代理，**自动规避 CORS** 且**不暴露后端域名**
-- 🏬 支持**多后端站点**（主站 / 备用站），用户可在下拉中切换
-- 🎛️ 品牌可定制（店铺名、LOGO emoji、充值/客服链接、人民币汇率）
-- 📋 一键复制结果摘要；可选"本机记忆密钥"
-- 🧱 纯静态 + Functions，零构建，push 即发
+## 🧩 当前架构
 
-## 🧩 接口说明
+```text
+public/
+├── index.html              前台查询页
+├── app.js                  前台逻辑，优先读取 /api/sites
+├── config.js               品牌与静态回退配置
+└── admin/
+    ├── index.html          后台站点管理页
+    └── login/index.html    后台登录页
 
-本工具调用的是 new-api 的 token 用量查询接口：
+functions/
+├── _middleware.js          保护 /admin 静态页面
+├── _lib/                   共享工具（鉴权 / KV / 响应）
+└── api/
+    ├── query.js            查询代理
+    ├── sites.js            前台公开站点列表
+    └── admin/
+        ├── _middleware.js  保护 /api/admin/*
+        ├── login.js
+        ├── logout.js
+        └── sites/
+            ├── index.js
+            ├── [id].js
+            └── reorder.js
+```
+
+## 🔐 后台登录与会话
+
+- 登录接口：`POST /api/admin/login`
+- 登录成功后写入：
+  - `HttpOnly`
+  - `Secure`
+  - `SameSite=Strict`
+  - `Max-Age=43200`（12 小时）
+- 后台静态页面由中间件保护，未登录会自动跳转到 `/admin/login`
+- 后台写接口只接受 **同源 Origin** 请求
+
+## 🗄️ 站点数据结构
+
+Cloudflare KV 里只维护一个键：
+
+```json
+[
+  {
+    "id": "uuid",
+    "label": "主站",
+    "url": "https://api.example.com",
+    "enabled": true,
+    "createdAt": "2026-04-20T11:00:00.000Z",
+    "updatedAt": "2026-04-20T11:00:00.000Z"
+  }
+]
+```
+
+前台公开接口 `GET /api/sites` 只返回已启用站点的精简结构：
+
+```json
+[
+  { "id": "uuid", "label": "主站" }
+]
+```
+
+查询时前台提交：
+
+```json
+{ "siteId": "uuid", "key": "sk-xxx" }
+```
+
+服务端再把 `siteId` 解析成真实 `url` 后，向：
 
 ```http
 GET /api/usage/token
-Authorization: Bearer sk-xxxxxxxx
+Authorization: Bearer sk-xxx
 ```
 
-响应（节选）：
-```json
-{
-  "code": true, "message": "ok",
-  "data": {
-    "name": "Default Token",
-    "total_granted": 1000000,
-    "total_used": 12345,
-    "total_available": 987655,
-    "unlimited_quota": false,
-    "model_limits": {"gpt-4o-mini": true},
-    "model_limits_enabled": false,
-    "expires_at": 0
-  }
-}
+发起请求。
+
+## ⚙️ 你现在主要改哪里
+
+### 1. 品牌与静态回退
+
+继续在 `public/config.js` 里改这些：
+
+```js
+shopName: '你的店铺名',
+logoEmoji: '⚡',
+tagline: '你的副标题',
+backends: [
+  { label: '主站', url: 'https://api.example.com' },
+],
+topupUrl: 'https://example.com/topup',
+supportUrl: 'https://t.me/your_support',
+quotaPerUnit: 500000,
+cnyRate: 7.2,
+footerNote: '本站仅查询已购买的 API 密钥额度，不存储密钥。',
 ```
 
-额度单位是 **quota**，默认 `500000 quota = $1`（如你在 new-api 后台改过 `quota_per_unit`，请同步修改 `public/config.js` 的 `quotaPerUnit`）。
+这里的 `backends` 现在有两个作用：
 
-## 📁 项目结构
+- 当前后台还没写入站点时，前台用它做回退
+- 后台站点为空时，可在 `/admin` 里一键导入
 
-```
-.
-├── public/                 ← 静态资源（Pages 根目录）
-│   ├── index.html
-│   ├── app.js
-│   ├── config.js           ← ⚠️ 你唯一需要改的文件
-│   └── favicon.svg
-├── functions/
-│   └── api/query.js        ← Pages Function 反代
-├── _headers                ← 安全响应头
-├── wrangler.toml           ← 本地开发配置
-├── .dev.vars.example       ← 环境变量样例（复制为 .dev.vars 使用）
-└── README.md
-```
+### 2. Cloudflare Secrets
 
-## 🚀 部署到 Cloudflare Pages（GitHub 接入）
+在 Pages 项目里配置：
+
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
+
+### 3. Cloudflare KV
+
+创建一个 KV Namespace，然后绑定名固定为：
+
+- `SITE_CONFIG`
+
+## 🚀 部署到 Cloudflare Pages
 
 ### 第 1 步：推到 GitHub
 
 ```bash
-cd "密钥查询器"
 git init
 git add .
-git commit -m "init: key query"
+git commit -m "init: key query with admin"
 git branch -M main
 git remote add origin https://github.com/<你>/new-api-key-query.git
 git push -u origin main
 ```
 
-### 第 2 步：改 `public/config.js`
+### 第 2 步：Cloudflare Dashboard 配置
 
-打开 `public/config.js`，至少改这三项：
+Pages 项目里做这几件事：
 
-```js
-shopName: '你的店铺名',
-backends: [
-  { label: '主站', url: 'https://your-newapi.example.com' },
-  // 可加备用站
-],
-topupUrl:   'https://your-shop.example.com/topup',  // 可选
-supportUrl: 'https://t.me/your_support',            // 可选
-```
+1. 连接 Git 仓库
+2. 构建配置：
+   - Framework preset: `None`
+   - Build command: 留空
+   - Build output directory: `public`
+3. 进入 **Settings → Environment variables / Variables and Secrets**
+4. 添加 Secrets：
+   - `ADMIN_PASSWORD`
+   - `ADMIN_SESSION_SECRET`
+5. 进入 **Settings → Bindings**
+6. 添加 KV 绑定：
+   - Variable name: `SITE_CONFIG`
+   - KV namespace: 你刚创建的那个
+7. 可选添加：
+   - `ALLOWED_BACKENDS=https://api.example.com,https://api2.example.com`
 
-### 第 3 步：Cloudflare Pages 配置
+### 第 3 步：首次进入后台
 
-1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers 与 Pages** → **创建** → **Pages** → **连接到 Git**
-2. 选择你刚推的仓库
-3. 构建配置：
-   - **Framework preset**: `None`
-   - **Build command**: 留空
-   - **Build output directory**: `public`
-4. 环境变量（可选但推荐）：
-   - `ALLOWED_BACKENDS`：`https://your-newapi.example.com,https://api2.example.com`
-     - 逗号分隔；**留空则不限制**
-     - 建议设置以防被人把你的 Pages 当作通用代理滥用
-5. 保存并部署。
+1. 打开 `/admin/login`
+2. 输入 `ADMIN_PASSWORD`
+3. 进入 `/admin`
+4. 如果后台为空，但 `config.js` 里有旧站点，会看到“一键导入现有站点”
+5. 导入后，前台刷新即可优先走后台站点列表
 
-### 第 4 步：绑自定义域名（可选）
+## 🛠️ 本地开发
 
-Pages 项目 → **Custom domains** → **Add** → 按提示添加 CNAME 即可。
-
-## 🛠️ 本地开发（可选）
+### 1. 准备本地变量
 
 ```bash
-# 安装 wrangler
-npm i -g wrangler
-
-# 复制本地环境变量样例
 cp .dev.vars.example .dev.vars
-# 按需填写 ALLOWED_BACKENDS
-
-# 启动
-wrangler pages dev public --compatibility-date=2025-01-01
-
-# 访问 http://localhost:8788
 ```
 
-## 🎨 自定义指南
+填好：
 
-### 品牌与文案
-全部在 `public/config.js` 里，改完 push 即生效。
-
-### 颜色 / 视觉
-主题色集中在 `public/index.html` 的 `<style>` 块：
-- `hero-bg` —— 背景渐变
-- `.bar` —— 进度条霓虹渐变
-- `.neon-edge::before` —— 卡片霓虹描边
-修改 Tailwind 类（`from-cyan-300 via-fuchsia-300 to-amber-200` 等）即可换配色。
-
-### 额度换算
-如果你在 new-api 后台修改过 `quota_per_unit`（默认 500000）：
-```js
-// public/config.js
-quotaPerUnit: 500000,  // 改成你实际的值
+```env
+ADMIN_PASSWORD=你的本地密码
+ADMIN_SESSION_SECRET=一串足够长的随机字符串
+ALLOWED_BACKENDS=
 ```
 
-## 🔒 安全与隐私
+### 2. 启动本地服务
 
-- 密钥**仅在用户浏览器 → Cloudflare Functions → 你的 new-api** 之间流转，Function 不记录密钥
-- `localStorage` 只在用户**主动勾选"记住"**时存储
-- Function 配了 8s 超时 + `Cache-Control: no-store`
-- 建议在生产环境配置 `ALLOWED_BACKENDS`，防止你的 Pages 被用作通用代理
+推荐带上本地 KV 和 HTTPS：
+
+```bash
+wrangler pages dev public --compatibility-date=2025-01-01 --kv=SITE_CONFIG --local-protocol=https
+```
+
+这样本地后台登录和 `Secure` Cookie 的行为更接近生产环境。
+
+## 📚 后台接口
+
+```http
+POST   /api/admin/login
+POST   /api/admin/logout
+GET    /api/admin/sites
+POST   /api/admin/sites
+PUT    /api/admin/sites/:id
+DELETE /api/admin/sites/:id
+POST   /api/admin/sites/reorder
+GET    /api/sites
+POST   /api/query
+```
+
+## 🔁 迁移逻辑
+
+迁移期的行为是：
+
+1. 后台 KV 有站点：
+   - 前台只展示后台已启用站点
+   - 查询时传 `siteId`
+2. 后台 KV 为空：
+   - 前台自动回退到 `config.js.backends`
+   - 查询时继续传 `backend`
+3. 后台导入或新增站点后：
+   - 前台刷新即切到后台实时列表
+
+## 🔒 安全说明
+
+- 密钥只在：浏览器 → Pages Function → 你的 new-api 之间传递
+- 后台登录会话是签名 Cookie，不把密码存前端
+- 后台写接口要求同源 Origin
+- 建议在生产环境保留 `ALLOWED_BACKENDS`，为静态回退和兼容模式兜底
 
 ## ❓ 常见问题
 
-**Q: 页面能打开，查询却报"密钥无效或已删除"**  
-A: 检查 `sk-xxx` 是否正确；去 new-api 后台确认该 token 存在且未禁用。
+**Q：后台能登录，但新增站点时报“未配置 SITE_CONFIG 绑定”**  
+A：说明你的 Pages 项目还没把 `SITE_CONFIG` 绑定到 KV Namespace。
 
-**Q: 报 "后端未提供该接口"**  
-A: new-api 版本过低（需 v0.8.0+ 即 PR #1161 之后）。升级后端即可。
+**Q：前台还能看到 `config.js` 里的旧站点**  
+A：这是回退逻辑。只要后台 KV 还为空，前台就继续用静态站点。进入 `/admin` 导入或新增后，刷新前台即可。
 
-**Q: 报 "该后端未在白名单内"**  
-A: 你在 Cloudflare 配置了 `ALLOWED_BACKENDS` 但用户选择的后端不在列表里。要么扩充白名单，要么清空该环境变量。
+**Q：为什么后台地址里不直接编辑 `/api/usage/token` 完整路径？**  
+A：后台只存域名 origin，查询接口会统一拼接 `/api/usage/token`，能减少配置错误。
 
-**Q: 报 "无法连接后端"**  
-A: new-api 实例未开放公网访问，或域名拼写错了。
-
-**Q: 额度数字和后台不一致**  
-A: 先确认 `config.js` 的 `quotaPerUnit` 与后台一致。
+**Q：为什么本地建议 HTTPS？**  
+A：后台会话 Cookie 带 `Secure` 标记，本地用 HTTPS 更接近正式环境。
 
 ## 📄 许可
 
