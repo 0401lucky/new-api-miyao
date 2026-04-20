@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN" class="h-full">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>密钥额度查询</title>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        animation: {
+          'pulse-glow': 'pulseGlow 2.4s ease-in-out infinite',
+          'float': 'float 6s ease-in-out infinite',
+        },
+        keyframes: {
+          pulseGlow: {
+            '0%,100%': { opacity: '0.55', filter: 'blur(20px)' },
+            '50%':     { opacity: '0.95', filter: 'blur(28px)' },
+          },
+          float: {
+            '0%,100%': { transform: 'translateY(0)' },
+            '50%':     { transform: 'translateY(-6px)' },
+          },
+        },
+      },
+    },
+  };
+</script>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+  .hero-bg {
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(99,102,241,0.30), transparent 60%),
+      radial-gradient(900px 500px at 110% 20%, rgba(236,72,153,0.20), transparent 60%),
+      radial-gradient(800px 500px at 50% 120%, rgba(34,211,238,0.20), transparent 60%),
+      linear-gradient(180deg, #020617 0%, #0b0820 50%, #020617 100%);
+  }
+  .glass {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    box-shadow: 0 10px 40px rgba(2, 6, 23, 0.55), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .neon-edge { position: relative; }
+  .neon-edge::before {
+    content: '';
+    position: absolute; inset: -1px; border-radius: inherit;
+    background: linear-gradient(120deg, #22d3ee33, #a855f766, #22d3ee33);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    padding: 1px;
+    pointer-events: none;
+  }
+  .track {
+    background: linear-gradient(180deg, rgba(15,23,42,0.9), rgba(15,23,42,0.6));
+    border: 1px solid rgba(148, 163, 184, 0.18);
+  }
+  .bar {
+    background: linear-gradient(90deg, #22d3ee, #a855f7 60%, #f472b6);
+    box-shadow: 0 0 24px rgba(168, 85, 247, 0.55);
+    transition: width 0.8s cubic-bezier(.2,.8,.2,1);
+  }
+  .bar-danger {
+    background: linear-gradient(90deg, #fb7185, #f59e0b);
+    box-shadow: 0 0 24px rgba(248, 113, 113, 0.6);
+  }
+  .field:focus-within {
+    border-color: rgba(168, 85, 247, 0.55);
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
+  }
+  .tag {
+    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+  .toast { animation: toastIn .25s ease-out; }
+  @keyframes toastIn {
+    from { transform: translateY(-12px); opacity: 0 }
+    to   { transform: translateY(0);    opacity: 1 }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    background-size: 200% 100%;
+    animation: skel 1.4s infinite;
+  }
+  @keyframes skel {
+    from { background-position: 200% 0 }
+    to   { background-position: -200% 0 }
+  }
+</style>
+</head>
+<body class="hero-bg text-slate-100 min-h-screen">
+
+<header class="relative z-10">
+  <div class="mx-auto max-w-5xl px-5 py-6 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div id="brandEmoji" class="text-3xl animate-float drop-shadow-[0_0_12px_rgba(168,85,247,0.6)]">⚡</div>
+      <div>
+        <div id="brandName" class="text-lg font-semibold tracking-wide">密钥额度查询</div>
+        <div id="brandTagline" class="text-xs text-slate-400"></div>
+      </div>
+    </div>
+    <nav class="hidden sm:flex items-center gap-5 text-sm text-slate-400">
+      <a id="navTopup"   target="_blank" rel="noopener" class="hover:text-cyan-300 transition hidden">充值</a>
+      <a id="navSupport" target="_blank" rel="noopener" class="hover:text-cyan-300 transition hidden">客服</a>
+    </nav>
+  </div>
+</header>
+
+<div id="toast" class="fixed top-4 inset-x-0 z-50 flex flex-col items-center pointer-events-none"></div>
+
+<main class="relative z-10 mx-auto max-w-5xl px-5 pb-20">
+
+  <section class="mt-4">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-amber-200 bg-clip-text text-transparent">
+        一键查询您的 API 密钥额度
+      </h1>
+      <p class="mt-3 text-slate-400 text-sm sm:text-base">输入 sk- 开头的密钥，即可查看剩余额度、已用额度、过期时间与模型白名单。</p>
+    </div>
+
+    <div class="glass neon-edge rounded-2xl p-5 sm:p-7">
+      <form id="queryForm" class="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div class="grid gap-4 sm:grid-cols-2">
+
+          <label class="block">
+            <span class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5">后端站点</span>
+            <div class="field flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2.5 transition">
+              <select id="backendSelect" class="flex-1 bg-transparent outline-none text-slate-100 appearance-none"></select>
+              <svg width="16" height="16" viewBox="0 0 24 24" class="text-slate-500"><path fill="currentColor" d="M7 10l5 5l5-5z"/></svg>
+            </div>
+            <div id="customBackendWrap" class="mt-2 hidden">
+              <input id="customBackend" type="url" placeholder="https://your-newapi.example.com"
+                class="w-full rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2.5 outline-none focus:border-purple-500/60 text-sm" />
+            </div>
+          </label>
+
+          <label class="block">
+            <span class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5">API 密钥</span>
+            <div class="field flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2.5 transition">
+              <span class="text-slate-500 text-sm select-none">sk-</span>
+              <input id="apiKey" type="password" placeholder="xxxxxxxxxxxxxxxxxx" autocomplete="off"
+                class="flex-1 bg-transparent outline-none text-slate-100 tracking-wider font-mono text-sm" />
+              <button type="button" id="toggleEye" aria-label="显示/隐藏" class="text-slate-500 hover:text-slate-200 transition">
+                <svg id="eyeClose" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M2 12s3.5-7 10-7s10 7 10 7s-3.5 7-10 7s-10-7-10-7m10 4a4 4 0 1 0 0-8a4 4 0 0 0 0 8m0-2a2 2 0 1 1 0-4a2 2 0 0 1 0 4z"/></svg>
+                <svg id="eyeOpen"  width="18" height="18" viewBox="0 0 24 24" class="hidden"><path fill="currentColor" d="M11.83 9L15 12.16V12a3 3 0 0 0-3-3zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65a3 3 0 0 0 3 3c.22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53a5 5 0 0 1-5-5c0-.79.2-1.53.53-2.2M2 4.27l2.28 2.28l.45.45C3.08 8.3 1.78 10 1 12q3 7 11 7c1.07 0 2.07-.17 3-.45l.45.45L17.73 22L19 20.73L3.27 5zM12 7a5 5 0 0 1 5 5c0 .64-.13 1.26-.36 1.82l2.93 2.93c1.5-1.25 2.7-2.89 3.43-4.75q-3-7-11-7c-.73 0-1.44.09-2.12.25l2.18 2.17c.56-.22 1.17-.42 1.94-.42"/></svg>
+              </button>
+            </div>
+            <label class="mt-2 flex items-center gap-2 text-xs text-slate-500 select-none cursor-pointer">
+              <input id="remember" type="checkbox" class="accent-fuchsia-500" />
+              <span>在本机浏览器记住此密钥</span>
+            </label>
+          </label>
+
+        </div>
+
+        <button id="submitBtn" type="submit"
+          class="h-[46px] inline-flex items-center justify-center gap-2 rounded-xl px-6 font-medium
+                 bg-gradient-to-r from-cyan-500 via-purple-500 to-fuchsia-500
+                 hover:brightness-110 active:brightness-95 transition
+                 shadow-[0_0_24px_rgba(168,85,247,0.45)]
+                 disabled:opacity-60 disabled:cursor-not-allowed">
+          <span id="btnLabel">查询额度</span>
+          <svg id="btnSpinner" class="hidden animate-spin" width="18" height="18" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="36" opacity=".35"/>
+            <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M21 12a9 9 0 0 0-9-9"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <section id="resultWrap" class="mt-8 hidden">
+
+    <div id="skeletonBlock" class="hidden grid gap-4">
+      <div class="skeleton rounded-2xl h-40"></div>
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div class="skeleton rounded-2xl h-28"></div>
+        <div class="skeleton rounded-2xl h-28"></div>
+        <div class="skeleton rounded-2xl h-28"></div>
+      </div>
+    </div>
+
+    <div id="resultBlock" class="hidden grid gap-5">
+
+      <div class="glass neon-edge rounded-2xl p-6 sm:p-8 relative overflow-hidden">
+        <div class="absolute -top-10 -right-10 w-52 h-52 rounded-full bg-fuchsia-500/20 animate-pulse-glow pointer-events-none"></div>
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <div class="text-xs uppercase tracking-widest text-slate-400">剩余额度</div>
+            <div id="remainUSD" class="mt-1 text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">$--</div>
+            <div id="remainCNY" class="text-xs text-slate-500 mt-1"></div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-400">令牌名称</div>
+            <div id="tokenName" class="text-sm text-slate-200 font-medium mt-0.5 break-all">--</div>
+            <div id="keyMask" class="text-[11px] text-slate-500 font-mono mt-1">--</div>
+          </div>
+        </div>
+
+        <div id="progressWrap" class="mt-6">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 mb-2">
+            <span>使用进度</span>
+            <span><span id="usedPercent">0</span>%</span>
+          </div>
+          <div class="track rounded-full h-2.5 overflow-hidden">
+            <div id="bar" class="bar h-full" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div id="unlimitedView" class="hidden mt-6 text-center">
+          <div class="text-6xl">♾️</div>
+          <div class="text-sm text-slate-400 mt-1">该密钥额度无限制</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="glass rounded-2xl p-5">
+          <div class="text-xs uppercase tracking-wider text-slate-400">已用额度</div>
+          <div id="usedUSD" class="mt-1 text-2xl font-semibold text-rose-300">$--</div>
+          <div id="usedQuota" class="text-[11px] text-slate-500 mt-0.5">--</div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+          <div class="text-xs uppercase tracking-wider text-slate-400">授予总额</div>
+          <div id="totalUSD" class="mt-1 text-2xl font-semibold text-cyan-300">$--</div>
+          <div id="totalQuota" class="text-[11px] text-slate-500 mt-0.5">--</div>
+        </div>
+        <div class="glass rounded-2xl p-5">
+          <div class="text-xs uppercase tracking-wider text-slate-400">到期时间</div>
+          <div id="expireTxt" class="mt-1 text-base font-medium text-slate-200">--</div>
+          <div id="expireRel" class="text-[11px] text-slate-500 mt-0.5">--</div>
+        </div>
+      </div>
+
+      <div id="modelBlock" class="hidden glass rounded-2xl p-5">
+        <div class="flex items-center justify-between">
+          <div class="text-xs uppercase tracking-wider text-slate-400">允许使用的模型</div>
+          <div class="text-[11px] text-slate-500">仅白名单生效</div>
+        </div>
+        <div id="modelTags" class="mt-3 flex flex-wrap gap-2"></div>
+      </div>
+
+      <div class="flex flex-wrap gap-3 justify-end pt-1">
+        <button id="copyBtn" class="text-xs px-4 py-2 rounded-lg border border-slate-700/60 hover:border-cyan-500/60 hover:text-cyan-300 transition">复制结果摘要</button>
+        <a id="topupBtn" target="_blank" rel="noopener" class="hidden text-xs px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white shadow-[0_0_16px_rgba(168,85,247,0.45)]">续费 / 充值</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="mt-16 text-center text-[11px] text-slate-500">
+    <div id="footerNote">—</div>
+    <div class="mt-1">Powered by <a href="https://github.com/QuantumNous/new-api" target="_blank" rel="noopener" class="hover:text-cyan-300">new-api</a></div>
+  </footer>
+</main>
+
+<script src="./config.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
