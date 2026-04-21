@@ -140,7 +140,22 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-    return json(parsed ?? { success: true, raw: text });
+    // 上游返回了 200，但内容不是 JSON —— 通常是 Cloudflare/阿里云 ESA/WAF 的反爬质询页（HTML+JS）。
+    // 这类站点不接受服务端代理查询，直接让前端看到明确错误，避免渲染成空结果。
+    if (!parsed) {
+      const looksLikeChallenge = /<html|<script|acw_sc__v2|denied by/i.test(text);
+      return json(
+        {
+          success: false,
+          message: looksLikeChallenge
+            ? '该站点启用了反爬防护（WAF / JS 质询），暂不支持通过本查询器查询，请到站点官网查看额度'
+            : '上游返回了非预期响应，可能不是 new-api 实例',
+        },
+        502,
+      );
+    }
+
+    return json(parsed);
   } catch (e) {
     if (e.name === 'AbortError') {
       return json({ success: false, message: '后端响应超时，请稍后重试' }, 504);
