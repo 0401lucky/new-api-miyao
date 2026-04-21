@@ -86,7 +86,7 @@ Cloudflare KV 里只维护一个键：
 服务端再把 `siteId` 解析成真实 `url` 后，向：
 
 ```http
-GET /api/usage/token
+GET /api/usage/token/
 Authorization: Bearer sk-xxx
 ```
 

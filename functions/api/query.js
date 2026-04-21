@@ -5,7 +5,10 @@ import { json, readJson } from '../_lib/http.js';
 import { loadSites, normalizeBackend } from '../_lib/site-store.js';
 
 const TIMEOUT_MS = 8000;
-const USAGE_PATH = '/api/usage/token';
+// new-api 的查询接口真实路径带末尾斜杠（/api/usage/token/）。
+// 不带斜杠会触发上游 301 重定向，部分网关/代理会剥离 Authorization 头，
+// 结果表现为有效密钥也被当成 Invalid token 返回 401。
+const USAGE_PATH = '/api/usage/token/';
 
 function parseAllowed(env) {
   const raw = (env?.ALLOWED_BACKENDS || '').trim();

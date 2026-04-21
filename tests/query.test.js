@@ -6,7 +6,7 @@ import { buildUsageUrl, isAllowedBackend } from '../functions/api/query.js';
 test('buildUsageUrl 会把查询接口拼到站点路径前缀后面', () => {
   assert.equal(
     buildUsageUrl('https://example.com/new-api/proxy'),
-    'https://example.com/new-api/proxy/api/usage/token',
+    'https://example.com/new-api/proxy/api/usage/token/',
   );
 });
 
