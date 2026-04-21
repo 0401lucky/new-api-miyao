@@ -81,6 +81,13 @@
     border-color: rgba(168, 85, 247, 0.55);
     box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
   }
+  /* 原生下拉菜单的 option 由操作系统渲染，
+     需要显式给深色背景，否则在 Windows/Chrome 下会继承透明背景，
+     与浅色字体叠加后完全看不见。 */
+  select option {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
   .tag {
     background: rgba(148, 163, 184, 0.1);
     border: 1px solid rgba(148, 163, 184, 0.2);
