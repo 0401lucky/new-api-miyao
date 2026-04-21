@@ -4,7 +4,10 @@ export function normalizeBackend(url) {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
-    return parsed.origin;
+    parsed.hash = '';
+    parsed.search = '';
+    const pathname = parsed.pathname.replace(/\/+$/, '');
+    return pathname ? `${parsed.origin}${pathname}` : parsed.origin;
   } catch {
     return null;
   }
@@ -44,7 +47,7 @@ export function validateSiteInput(input) {
   const url = normalizeBackend(input?.url || '');
   if (!label) return { error: '站点名称不能为空' };
   if (label.length > 40) return { error: '站点名称不能超过 40 个字符' };
-  if (!url) return { error: '站点地址必须是有效的 http/https URL' };
+  if (!url) return { error: '站点地址必须是有效的 http/https URL，可带路径前缀' };
   return {
     value: {
       label,

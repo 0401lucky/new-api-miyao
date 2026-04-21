@@ -16,6 +16,47 @@ function parseAllowed(env) {
     .filter(Boolean);
 }
 
+function getBackendPathname(backend) {
+  try {
+    return new URL(backend).pathname.replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function getBackendOrigin(backend) {
+  try {
+    return new URL(backend).origin;
+  } catch {
+    return null;
+  }
+}
+
+export function buildUsageUrl(backend) {
+  const normalized = normalizeBackend(backend);
+  if (!normalized) return null;
+  return new URL(USAGE_PATH.replace(/^\//, ''), `${normalized}/`).toString();
+}
+
+export function isAllowedBackend(backend, allowed) {
+  if (!allowed?.length) return true;
+
+  const normalizedBackend = normalizeBackend(backend);
+  if (!normalizedBackend) return false;
+
+  const backendOrigin = getBackendOrigin(normalizedBackend);
+  return allowed.some(entry => {
+    const normalizedEntry = normalizeBackend(entry);
+    if (!normalizedEntry) return false;
+
+    const entryPath = getBackendPathname(normalizedEntry);
+    if (!entryPath || entryPath === '/') {
+      return getBackendOrigin(normalizedEntry) === backendOrigin;
+    }
+    return normalizedEntry === normalizedBackend;
+  });
+}
+
 export async function onRequestPost({ request, env }) {
   const body = await readJson(request);
   if (!body) {
@@ -57,11 +98,14 @@ export async function onRequestPost({ request, env }) {
   }
 
   const allowed = parseAllowed(env);
-  if (allowed && !allowed.includes(backend)) {
+  if (!isAllowedBackend(backend, allowed)) {
     return json({ success: false, message: '该后端未在白名单内，请联系商家' }, 403);
   }
 
-  const target = backend + USAGE_PATH;
+  const target = buildUsageUrl(backend);
+  if (!target) {
+    return json({ success: false, message: '查询站点无效，请刷新页面后重试' }, 400);
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 

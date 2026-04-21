@@ -381,7 +381,7 @@
       <aside class="panel">
         <p class="subtle">站点新增</p>
         <h2>把新站点录进去</h2>
-        <p class="hint" style="margin-top:10px;">这里只保存站点名称和域名，查询时由服务端拼接 `/api/usage/token`。</p>
+        <p class="hint" style="margin-top:10px;">这里可填写站点基础地址，支持域名或带路径前缀的地址；查询时由服务端自动拼接 `/api/usage/token`。</p>
 
         <form class="form-grid" id="createForm">
           <label>
@@ -390,7 +390,7 @@
           </label>
           <label>
             站点地址
-            <input id="createUrl" name="url" type="url" placeholder="https://api.example.com" required />
+            <input id="createUrl" name="url" type="url" placeholder="https://api.example.com 或 https://api.example.com/new-api" required />
           </label>
           <button class="btn btn-primary" id="createBtn" type="submit">新增站点</button>
         </form>

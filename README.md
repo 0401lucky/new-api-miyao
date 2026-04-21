@@ -240,7 +240,7 @@ A：说明你的 Pages 项目还没把 `SITE_CONFIG` 绑定到 KV Namespace。
 A：这是回退逻辑。只要后台 KV 还为空，前台就继续用静态站点。进入 `/admin` 导入或新增后，刷新前台即可。
 
 **Q：为什么后台地址里不直接编辑 `/api/usage/token` 完整路径？**  
-A：后台只存域名 origin，查询接口会统一拼接 `/api/usage/token`，能减少配置错误。
+A：后台填写的是站点基础地址，可以是纯域名，也可以带路径前缀；查询接口会在这个基础地址后统一拼接 `/api/usage/token`，既能减少配置错误，也兼容挂在子路径下的 new-api。
 
 **Q：为什么本地建议 HTTPS？**  
 A：后台会话 Cookie 带 `Secure` 标记，本地用 HTTPS 更接近正式环境。
