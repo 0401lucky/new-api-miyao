@@ -1,14 +1,23 @@
 // Cloudflare Pages Function：/api/query
-// 职责：代理 new-api 的 /api/usage/token 查询接口，同源调用规避 CORS 并隐藏后端地址
+// 主路：代理 new-api 的 /api/usage/token/（信息最全：令牌名、到期、模型白名单等）
+// 回退：当主路被 WAF / JS 质询挡住（返回 HTML）时，改走 OpenAI 兼容的
+//       /v1/dashboard/billing/subscription + /v1/dashboard/billing/usage。
+//       这两个路径通常不能被站点拦截，否则 OpenAI / Claude Code 客户端也用不了。
 
 import { json, readJson } from '../_lib/http.js';
 import { loadSites, normalizeBackend } from '../_lib/site-store.js';
 
 const TIMEOUT_MS = 8000;
-// new-api 的查询接口真实路径带末尾斜杠（/api/usage/token/）。
-// 不带斜杠会触发上游 301 重定向，部分网关/代理会剥离 Authorization 头，
-// 结果表现为有效密钥也被当成 Invalid token 返回 401。
+// new-api 的原生查询接口路径带末尾斜杠（/api/usage/token/）。
+// 不带斜杠会触发 301 重定向，部分网关在跟随重定向时剥离 Authorization 头。
 const USAGE_PATH = '/api/usage/token/';
+// new-api 和 one-api 都实现了 OpenAI Billing API 兼容路径，用作回退。
+const BILLING_SUB_PATH = '/v1/dashboard/billing/subscription';
+const BILLING_USAGE_PATH = '/v1/dashboard/billing/usage';
+// 1 USD = 500000 quota（new-api 和 one-api 的默认换算）。
+const QUOTA_PER_USD = 500000;
+// OpenAI Billing 的 total_usage 单位是美分。
+const CENTS_PER_USD = 100;
 
 function parseAllowed(env) {
   const raw = (env?.ALLOWED_BACKENDS || '').trim();
@@ -35,10 +44,14 @@ function getBackendOrigin(backend) {
   }
 }
 
-export function buildUsageUrl(backend) {
+function joinBackendPath(backend, path) {
   const normalized = normalizeBackend(backend);
   if (!normalized) return null;
-  return new URL(USAGE_PATH.replace(/^\//, ''), `${normalized}/`).toString();
+  return new URL(path.replace(/^\//, ''), `${normalized}/`).toString();
+}
+
+export function buildUsageUrl(backend) {
+  return joinBackendPath(backend, USAGE_PATH);
 }
 
 export function isAllowedBackend(backend, allowed) {
@@ -58,6 +71,84 @@ export function isAllowedBackend(backend, allowed) {
     }
     return normalizedEntry === normalizedBackend;
   });
+}
+
+function looksLikeChallenge(text) {
+  return /<html|<script|acw_sc__v2|denied by/i.test(text || '');
+}
+
+function pickErrorMessage(parsed, fallback) {
+  return parsed?.message || parsed?.error?.message || fallback;
+}
+
+async function fetchJson(url, key, signal) {
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      Accept: 'application/json',
+      'User-Agent': 'new-api-key-query/1.0',
+    },
+    signal,
+  });
+  const text = await resp.text();
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch { /* 非 JSON */ }
+  return { resp, text, parsed };
+}
+
+// 回退：走 OpenAI Billing 兼容接口合成出前端期望的字段结构。
+async function queryViaBillingFallback(backend, key, signal) {
+  const subUrl = joinBackendPath(backend, BILLING_SUB_PATH);
+  const today = new Date();
+  const end = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
+  const start = new Date(today.getTime() - 90 * 86400000).toISOString().slice(0, 10);
+  const usageUrl = `${joinBackendPath(backend, BILLING_USAGE_PATH)}?start_date=${start}&end_date=${end}`;
+
+  const [sub, usage] = await Promise.all([
+    fetchJson(subUrl, key, signal),
+    fetchJson(usageUrl, key, signal),
+  ]);
+
+  if (sub.resp.status === 401) {
+    return {
+      kind: 'error',
+      status: 401,
+      message: pickErrorMessage(sub.parsed, '密钥无效或已删除'),
+    };
+  }
+  if (!sub.resp.ok || !sub.parsed) {
+    return {
+      kind: 'error',
+      status: 502,
+      message: pickErrorMessage(sub.parsed, '该站点未开放 OpenAI 兼容接口，无法降级查询'),
+    };
+  }
+
+  const totalUsd = Number(sub.parsed?.hard_limit_usd ?? 0);
+  const unlimited = !!sub.parsed?.unlimited_quota;
+  const expiresAt = Number(sub.parsed?.access_until ?? 0);
+  const usedUsd = usage.resp.ok && usage.parsed
+    ? Number(usage.parsed?.total_usage ?? 0) / CENTS_PER_USD
+    : 0;
+  const availableUsd = unlimited ? 0 : Math.max(0, totalUsd - usedUsd);
+
+  return {
+    kind: 'ok',
+    data: {
+      success: true,
+      data: {
+        name: sub.parsed?.plan?.title || '订阅令牌',
+        unlimited_quota: unlimited,
+        total_granted: totalUsd * QUOTA_PER_USD,
+        total_used: usedUsd * QUOTA_PER_USD,
+        total_available: availableUsd * QUOTA_PER_USD,
+        expires_at: expiresAt,
+        model_limits_enabled: false,
+        model_limits: {},
+      },
+    },
+  };
 }
 
 export async function onRequestPost({ request, env }) {
@@ -113,49 +204,38 @@ export async function onRequestPost({ request, env }) {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 
   try {
-    const upstream = await fetch(target, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        Accept: 'application/json',
-        'User-Agent': 'new-api-key-query/1.0',
-      },
-      signal: ctrl.signal,
-    });
+    const primary = await fetchJson(target, key, ctrl.signal);
 
-    const text = await upstream.text();
-    let parsed = null;
-    try { parsed = JSON.parse(text); } catch { /* 非 JSON 响应 */ }
-
-    if (upstream.status === 401) {
-      return json({ success: false, message: parsed?.message || '密钥无效或已删除' }, 401);
-    }
-    if (upstream.status === 404) {
-      return json({ success: false, message: '后端未提供该接口，可能 new-api 版本过旧' }, 404);
-    }
-    if (!upstream.ok) {
+    if (primary.resp.status === 401) {
       return json(
-        { success: false, message: parsed?.message || `上游错误（${upstream.status}）` },
-        upstream.status,
+        { success: false, message: pickErrorMessage(primary.parsed, '密钥无效或已删除') },
+        401,
+      );
+    }
+    if (primary.resp.ok && primary.parsed) {
+      return json(primary.parsed);
+    }
+
+    // 主路被 WAF 挡（200 + HTML 质询）或返回 404：尝试 OpenAI 兼容回退。
+    const shouldFallback = primary.resp.status === 404
+      || (primary.resp.ok && !primary.parsed && looksLikeChallenge(primary.text));
+    if (shouldFallback) {
+      const fallback = await queryViaBillingFallback(backend, key, ctrl.signal);
+      if (fallback.kind === 'ok') return json(fallback.data);
+      return json({ success: false, message: fallback.message }, fallback.status);
+    }
+
+    if (!primary.resp.ok) {
+      return json(
+        { success: false, message: pickErrorMessage(primary.parsed, `上游错误（${primary.resp.status}）`) },
+        primary.resp.status,
       );
     }
 
-    // 上游返回了 200，但内容不是 JSON —— 通常是 Cloudflare/阿里云 ESA/WAF 的反爬质询页（HTML+JS）。
-    // 这类站点不接受服务端代理查询，直接让前端看到明确错误，避免渲染成空结果。
-    if (!parsed) {
-      const looksLikeChallenge = /<html|<script|acw_sc__v2|denied by/i.test(text);
-      return json(
-        {
-          success: false,
-          message: looksLikeChallenge
-            ? '该站点启用了反爬防护（WAF / JS 质询），暂不支持通过本查询器查询，请到站点官网查看额度'
-            : '上游返回了非预期响应，可能不是 new-api 实例',
-        },
-        502,
-      );
-    }
-
-    return json(parsed);
+    return json(
+      { success: false, message: '上游返回了非预期响应，可能不是 new-api 实例' },
+      502,
+    );
   } catch (e) {
     if (e.name === 'AbortError') {
       return json({ success: false, message: '后端响应超时，请稍后重试' }, 504);
