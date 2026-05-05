@@ -1,4 +1,11 @@
 const SITE_KEY = 'sites:v1';
+const DEFAULT_SITE_TYPE = 'new-api';
+const SITE_TYPES = new Set([DEFAULT_SITE_TYPE, 'sub2api']);
+
+export function normalizeSiteType(type) {
+  const normalized = String(type || '').trim().toLowerCase();
+  return SITE_TYPES.has(normalized) ? normalized : DEFAULT_SITE_TYPE;
+}
 
 export function normalizeBackend(url) {
   try {
@@ -25,6 +32,7 @@ function normalizeLoadedSites(input) {
     id: String(item?.id || ''),
     label: String(item?.label || '').trim(),
     url: normalizeBackend(item?.url || ''),
+    type: normalizeSiteType(item?.type),
     enabled: item?.enabled !== false,
     createdAt: String(item?.createdAt || ''),
     updatedAt: String(item?.updatedAt || ''),
@@ -52,6 +60,7 @@ export function validateSiteInput(input) {
     value: {
       label,
       url,
+      type: normalizeSiteType(input?.type),
       enabled: input?.enabled !== false,
     },
   };
@@ -65,6 +74,7 @@ export function createSiteRecord(input, now = new Date().toISOString()) {
       id: crypto.randomUUID(),
       label: validated.value.label,
       url: validated.value.url,
+      type: validated.value.type,
       enabled: validated.value.enabled,
       createdAt: now,
       updatedAt: now,
@@ -80,6 +90,7 @@ export function updateSiteRecord(previous, input, now = new Date().toISOString()
       ...previous,
       label: validated.value.label,
       url: validated.value.url,
+      type: validated.value.type,
       enabled: validated.value.enabled,
       updatedAt: now,
     },
@@ -89,5 +100,5 @@ export function updateSiteRecord(previous, input, now = new Date().toISOString()
 export function toPublicSites(sites) {
   return sites
     .filter(site => site.enabled)
-    .map(site => ({ id: site.id, label: site.label }));
+    .map(site => ({ id: site.id, label: site.label, type: site.type }));
 }

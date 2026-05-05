@@ -1,7 +1,7 @@
-# New API 密钥额度查询器
+# New API / Sub2API 密钥额度查询器
 
 一个部署在 **Cloudflare Pages** 的轻量工具，让你的 API 买家输入自己的 `sk-xxx` 后，自助查询额度、已用、到期时间与模型白名单。  
-前台使用 **Cloudflare Pages Functions** 代理到你自建的 [QuantumNous/new-api](https://github.com/QuantumNous/new-api) 实例，后台则新增了 **密码保护的站点管理页**，可实时维护前台可选站点。
+前台使用 **Cloudflare Pages Functions** 代理到你自建的 [QuantumNous/new-api](https://github.com/QuantumNous/new-api) 或 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api) 实例，后台提供 **密码保护的站点管理页**，可实时维护前台可选站点。
 
 ## ✨ 现在支持什么
 
@@ -10,6 +10,7 @@
 - 后台登录页：`/admin/login`
 - 后台站点管理页：`/admin`
 - 站点列表写入 Cloudflare KV，保存后前台刷新即可生效
+- 后台站点可选择 `New API / One API` 或 `Sub2API` 类型
 - 当前后台为空时，前台会自动回退到 `public/config.js` 的静态 `backends`
 - 后台提供“一键导入当前静态站点”能力，方便首次迁移
 - 旧的 `{ backend, key }` 查询方式仍保留，用于迁移期和静态回退
@@ -62,6 +63,7 @@ Cloudflare KV 里只维护一个键：
     "id": "uuid",
     "label": "主站",
     "url": "https://api.example.com",
+    "type": "new-api",
     "enabled": true,
     "createdAt": "2026-04-20T11:00:00.000Z",
     "updatedAt": "2026-04-20T11:00:00.000Z"
@@ -73,7 +75,7 @@ Cloudflare KV 里只维护一个键：
 
 ```json
 [
-  { "id": "uuid", "label": "主站" }
+  { "id": "uuid", "label": "主站", "type": "new-api" }
 ]
 ```
 
@@ -92,6 +94,15 @@ Authorization: Bearer sk-xxx
 
 发起请求。
 
+如果站点类型为 `sub2api`，服务端会改向：
+
+```http
+GET /v1/usage
+Authorization: Bearer sk-xxx
+```
+
+发起请求，并把 Sub2API 的 USD 额度数据转换成前台统一展示格式。
+
 ## ⚙️ 你现在主要改哪里
 
 ### 1. 品牌与静态回退
@@ -103,7 +114,8 @@ shopName: '你的店铺名',
 logoEmoji: '⚡',
 tagline: '你的副标题',
 backends: [
-  { label: '主站', url: 'https://api.example.com' },
+  { label: '主站', url: 'https://api.example.com', type: 'new-api' },
+  { label: 'Sub2API 站', url: 'https://sub2api.example.com', type: 'sub2api' },
 ],
 topupUrl: 'https://example.com/topup',
 supportUrl: 'https://t.me/your_support',
@@ -111,6 +123,11 @@ quotaPerUnit: 500000,
 cnyRate: 7.2,
 footerNote: '本站仅查询已购买的 API 密钥额度，不存储密钥。',
 ```
+
+这里的 `type` 可选，默认是 `new-api`：
+
+- `new-api`：兼容 New API / One API，查询 `/api/usage/token/`
+- `sub2api`：查询 Sub2API 的 `/v1/usage`
 
 这里的 `backends` 现在有两个作用：
 
@@ -240,7 +257,10 @@ A：说明你的 Pages 项目还没把 `SITE_CONFIG` 绑定到 KV Namespace。
 A：这是回退逻辑。只要后台 KV 还为空，前台就继续用静态站点。进入 `/admin` 导入或新增后，刷新前台即可。
 
 **Q：为什么后台地址里不直接编辑 `/api/usage/token` 完整路径？**  
-A：后台填写的是站点基础地址，可以是纯域名，也可以带路径前缀；查询接口会在这个基础地址后统一拼接 `/api/usage/token`，既能减少配置错误，也兼容挂在子路径下的 new-api。
+A：后台填写的是站点基础地址，可以是纯域名，也可以带路径前缀；查询接口会按站点类型自动拼接 `/api/usage/token/` 或 `/v1/usage`，既能减少配置错误，也兼容挂在子路径下的实例。
+
+**Q：Sub2API 查询需要用户登录令牌吗？**  
+A：不需要。这里走的是 Sub2API 的 `GET /v1/usage`，直接使用买家的 `sk-xxx` 做 `Authorization: Bearer` 鉴权。
 
 **Q：为什么本地建议 HTTPS？**  
 A：后台会话 Cookie 带 `Secure` 标记，本地用 HTTPS 更接近正式环境。

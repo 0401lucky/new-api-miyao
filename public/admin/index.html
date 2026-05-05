@@ -217,7 +217,8 @@
   }
 
   input[type='text'],
-  input[type='url'] {
+  input[type='url'],
+  select {
     width: 100%;
     border: 1px solid rgba(103, 217, 255, 0.16);
     border-radius: 14px;
@@ -228,7 +229,8 @@
   }
 
   input[type='text']:focus,
-  input[type='url']:focus {
+  input[type='url']:focus,
+  select:focus {
     border-color: rgba(103, 217, 255, 0.42);
     box-shadow: 0 0 0 3px rgba(103, 217, 255, 0.12);
   }
@@ -295,7 +297,7 @@
   .site-grid {
     display: grid;
     gap: 12px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 0.8fr 1fr 1.4fr;
   }
 
   .site-actions {
@@ -381,12 +383,19 @@
       <aside class="panel">
         <p class="subtle">站点新增</p>
         <h2>把新站点录进去</h2>
-        <p class="hint" style="margin-top:10px;">这里可填写站点基础地址，支持域名或带路径前缀的地址；查询时由服务端自动拼接 `/api/usage/token`。</p>
+        <p class="hint" style="margin-top:10px;">这里可填写站点基础地址，支持域名或带路径前缀的地址；查询时由服务端按站点类型自动拼接查询接口。</p>
 
         <form class="form-grid" id="createForm">
           <label>
             站点名称
             <input id="createLabel" name="label" type="text" maxlength="40" placeholder="例如：主站 / 日本备用站" required />
+          </label>
+          <label>
+            站点类型
+            <select id="createType" name="type">
+              <option value="new-api">New API / One API</option>
+              <option value="sub2api">Sub2API</option>
+            </select>
           </label>
           <label>
             站点地址
@@ -407,7 +416,7 @@
           <div class="stat">
             <span class="subtle">前台调用方式</span>
             <strong style="font-size:18px;">站点 ID → 服务端解析</strong>
-            <p class="hint" style="margin-top:8px;">前台不再直接暴露真实后端地址。</p>
+            <p class="hint" style="margin-top:8px;">前台不再直接暴露真实后端地址，并由后台决定查询类型。</p>
           </div>
         </div>
       </aside>
@@ -437,19 +446,40 @@
     (() => {
       const CFG = window.APP_CONFIG || {};
       const $ = sel => document.querySelector(sel);
+      const SITE_TYPES = [
+        { value: 'new-api', label: 'New API / One API' },
+        { value: 'sub2api', label: 'Sub2API' },
+      ];
       const state = {
         sites: [],
         loading: false,
       };
+
+      function normalizeSiteType(type) {
+        const normalized = String(type || '').trim().toLowerCase();
+        return SITE_TYPES.some(item => item.value === normalized) ? normalized : 'new-api';
+      }
+
+      function siteTypeLabel(type) {
+        return SITE_TYPES.find(item => item.value === normalizeSiteType(type))?.label || 'New API / One API';
+      }
+
+      function renderSiteTypeOptions(selectedType) {
+        const selected = normalizeSiteType(selectedType);
+        return SITE_TYPES
+          .map(item => `<option value="${item.value}" ${item.value === selected ? 'selected' : ''}>${item.label}</option>`)
+          .join('');
+      }
 
       const staticSites = (CFG.backends || [])
         .filter(site => site && site.url)
         .map(site => ({
           label: String(site.label || site.url).trim(),
           url: String(site.url).trim(),
+          type: normalizeSiteType(site.type),
         }))
         .filter(site => /^https?:\/\//.test(site.url))
-        .filter((site, index, list) => list.findIndex(item => item.url === site.url) === index);
+        .filter((site, index, list) => list.findIndex(item => item.url === site.url && item.type === site.type) === index);
 
       function escapeHtml(text) {
         return String(text)
@@ -503,7 +533,7 @@
           <h2 style="font-size:22px; margin-top:6px;">后台还没写入站点，是否导入当前静态配置？</h2>
           <p class="hint" style="margin-top:10px;">导入后，前台会优先使用后台站点列表。以下 ${staticSites.length} 个站点来自现有 \`config.js\`：</p>
           <div style="display:grid; gap:8px; margin-top:14px;">
-            ${staticSites.map(site => `<div class="badge enabled">${escapeHtml(site.label)} · ${escapeHtml(site.url)}</div>`).join('')}
+            ${staticSites.map(site => `<div class="badge enabled">${escapeHtml(site.label)} · ${escapeHtml(siteTypeLabel(site.type))} · ${escapeHtml(site.url)}</div>`).join('')}
           </div>
           <div style="margin-top:16px;">
             <button class="btn btn-primary" id="importBtn" type="button">一键导入现有站点</button>
@@ -535,6 +565,10 @@
               <div class="badge ${site.enabled ? 'enabled' : 'disabled'}">${site.enabled ? '启用中' : '已停用'}</div>
             </div>
             <div class="site-grid">
+              <label>
+                站点类型
+                <select data-field="type">${renderSiteTypeOptions(site.type)}</select>
+              </label>
               <label>
                 显示名称
                 <input type="text" data-field="label" value="${escapeHtml(site.label)}" maxlength="40" />
@@ -574,6 +608,7 @@
         const card = document.querySelector(`[data-site-id="${siteId}"]`);
         return {
           label: card.querySelector('[data-field="label"]').value.trim(),
+          type: normalizeSiteType(card.querySelector('[data-field="type"]').value),
           url: card.querySelector('[data-field="url"]').value.trim(),
         };
       }
@@ -673,6 +708,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               label: $('#createLabel').value.trim(),
+              type: normalizeSiteType($('#createType').value),
               url: $('#createUrl').value.trim(),
             }),
           });

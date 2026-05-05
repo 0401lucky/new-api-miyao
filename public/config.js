@@ -10,9 +10,10 @@ window.APP_CONFIG = {
   // ===== 静态回退站点列表 =====
   // 当后台 KV 还没有站点时，前台会回退读取这里
   // 后台管理页也可以一键导入这些站点
+  // type 可选：new-api（默认，兼容 one-api）或 sub2api
   backends: [
-    { label: '主站', url: 'https://www.lucky04.dpdns.org' },
-    // { label: '备用站', url: 'https://api2.example.com' },
+    { label: '主站', url: 'https://www.lucky04.dpdns.org', type: 'new-api' },
+    // { label: 'Sub2API 站', url: 'https://sub2api.example.com', type: 'sub2api' },
   ],
 
   // ===== 额度换算（one-api / new-api 默认 500000 quota = $1）=====

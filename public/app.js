@@ -42,6 +42,11 @@
   }
 
   // ========== 工具 ==========
+  const normalizeSiteType = type => {
+    const normalized = String(type || '').trim().toLowerCase();
+    return ['new-api', 'sub2api'].includes(normalized) ? normalized : 'new-api';
+  };
+  const siteTypeLabel = type => normalizeSiteType(type) === 'sub2api' ? 'Sub2API' : 'New API';
   const quotaPerUnit = () => CFG.quotaPerUnit || 500000;
   const toUSD = q => q / quotaPerUnit();
   const fmtUSD = q => `$${toUSD(q).toFixed(4)}`;
@@ -72,6 +77,7 @@
       .map(site => ({
         value: String(site.url).trim(),
         label: site.label || String(site.url).trim(),
+        type: normalizeSiteType(site.type),
       }))
       .filter(site => /^https?:\/\//.test(site.value));
   }
@@ -93,7 +99,7 @@
     sites.forEach(site => {
       const option = document.createElement('option');
       option.value = site.value;
-      option.textContent = site.label;
+      option.textContent = `${site.label} · ${siteTypeLabel(site.type)}`;
       sel.appendChild(option);
     });
 
@@ -103,7 +109,7 @@
     }
 
     $('#siteHint').textContent = source === 'remote'
-      ? '站点列表由后台实时维护，新增或停用后刷新页面即可看到。'
+      ? '站点列表由后台实时维护，支持 New API / One API 与 Sub2API。'
       : '当前使用 config.js 里的静态站点列表；后台尚未写入站点配置。';
   }
 
@@ -116,7 +122,11 @@
       const resp = await fetch('/api/sites', { headers: { Accept: 'application/json' } });
       const data = await resp.json().catch(() => ({}));
       const sites = Array.isArray(data?.data?.sites)
-        ? data.data.sites.map(site => ({ value: site.id, label: site.label }))
+        ? data.data.sites.map(site => ({
+          value: site.id,
+          label: site.label,
+          type: normalizeSiteType(site.type),
+        }))
         : [];
       if (resp.ok && sites.length) {
         renderSiteOptions(sites, 'remote');
@@ -179,6 +189,7 @@
 
   async function query() {
     const selectedValue = ($('#backendSelect').value || '').trim();
+    const selectedSite = state.sites.find(site => site.value === selectedValue);
     const key = getKey();
 
     if (!selectedValue) {
@@ -192,7 +203,7 @@
 
     const payload = state.source === 'remote'
       ? { siteId: selectedValue, key }
-      : { backend: selectedValue, key };
+      : { backend: selectedValue, key, type: selectedSite?.type };
 
     setLoading(true);
     try {
