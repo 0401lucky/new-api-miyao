@@ -218,6 +218,10 @@
         return;
       }
       renderResult(data, key);
+      // 回退通道可能读到用户级额度或 CNY 伪 USD，与令牌真实余额不一致时给出提示
+      if (data?.data?.source === 'billing-fallback') {
+        toast('已走降级查询通道，余额可能与令牌页略有差异；可再查一次以优先主路', 'error');
+      }
       persistMemory(selectedValue, key);
     } catch (error) {
       renderError(`网络错误：${error.message || 'unknown'}`);

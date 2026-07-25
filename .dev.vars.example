@@ -10,3 +10,9 @@ ADMIN_SESSION_SECRET=change-this-to-a-long-random-secret
 
 # 可选：限制兼容模式下的直连代理只能指向白名单后端，逗号分隔；留空则允许任意
 ALLOWED_BACKENDS=
+
+# 可选：new-api Billing 回退通道的货币语义
+# 若上游站点「额度展示类型」为人民币，hard_limit_usd 实际是 CNY 数值，
+# 需配置下面两项，否则降级查询余额会偏大约汇率倍数
+# BILLING_DISPLAY_CURRENCY=CNY
+# BILLING_USD_CNY_RATE=7.2
